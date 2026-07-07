@@ -753,7 +753,9 @@
       <a href="#trust">Trust &amp; privacy</a>
       <a href="#pricing">Pricing</a>
       <a href="#faq">FAQ</a>
-      <a href="#auth" id="navLogin">Log in</a>
+      <div id="navAccountWrap" style="display:inline-flex; align-items:center;">
+        <a href="#auth" id="navLogin">Log in</a>
+      </div>
     </nav>
     <a href="#tool" class="nav-cta" id="navCta">
       <span id="navCtaLabel">Upload your letter</span>
@@ -1877,15 +1879,40 @@ Sincerely,
   });
 
   async function reflectAuthState(){
-    const navLogin = document.getElementById('navLogin');
+    const wrap = document.getElementById('navAccountWrap');
     if (!authConfigured || !supaClient) return;
     const { data } = await supaClient.auth.getSession();
+
     if (data && data.session) {
-      navLogin.textContent = data.session.user.email;
-      navLogin.setAttribute('href', '#tool');
+      const email = data.session.user.email || '';
+      const initial = email.charAt(0).toUpperCase() || '?';
+      wrap.innerHTML = `
+        <div class="profile-chip" style="position:relative; display:inline-block;">
+          <button id="profileChipBtn" type="button" style="display:flex; align-items:center; gap:8px; background:none; border:none; cursor:pointer; padding:4px 6px; font-family:inherit;">
+            <span style="width:28px; height:28px; border-radius:50%; background:#0B3B33; color:#F1EEE3; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono', monospace; font-size:13px;">${initial}</span>
+          </button>
+          <div id="profileChipMenu" style="display:none; position:absolute; right:0; top:38px; background:#F1EEE3; border:1px solid #DCEFE8; border-radius:10px; box-shadow:0 6px 20px rgba(11,59,51,0.15); min-width:200px; z-index:50; overflow:hidden;">
+            <div style="padding:12px 14px; font-family:'JetBrains Mono', monospace; font-size:12px; color:#232420; border-bottom:1px solid #DCEFE8; word-break:break-all;">${email}</div>
+            <a href="#tool" style="display:block; padding:10px 14px; color:#232420; text-decoration:none; font-size:14px;">My appeals</a>
+            <button id="profileLogoutBtn" type="button" style="display:block; width:100%; text-align:left; padding:10px 14px; background:none; border:none; color:#FF5A36; cursor:pointer; font-size:14px; font-family:inherit;">Log out</button>
+          </div>
+        </div>`;
+
+      const btn = document.getElementById('profileChipBtn');
+      const menu = document.getElementById('profileChipMenu');
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+      });
+      document.addEventListener('click', () => { menu.style.display = 'none'; });
+
+      document.getElementById('profileLogoutBtn').addEventListener('click', async () => {
+        await supaClient.auth.signOut();
+        reflectAuthState();
+        location.hash = '#home';
+      });
     } else {
-      navLogin.textContent = 'Log in';
-      navLogin.setAttribute('href', '#auth');
+      wrap.innerHTML = '<a href="#auth" id="navLogin">Log in</a>';
     }
   }
   if (authConfigured && supaClient) {
