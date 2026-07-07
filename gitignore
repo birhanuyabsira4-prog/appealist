@@ -1,0 +1,15 @@
+# NEVER commit real environment files with secret keys.
+# Only .env.example (with fake placeholder values) should ever be committed.
+.env
+.env.local
+.env.*.local
+
+# Dependencies (these get reinstalled automatically, no need to upload them)
+node_modules/
+
+# Vercel's own local build files
+.vercel
+
+# Common OS/editor junk files
+.DS_Store
+*.log
