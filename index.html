@@ -1895,6 +1895,7 @@ Sincerely,
             <div style="padding:12px 14px; font-family:'JetBrains Mono', monospace; font-size:12px; color:#232420; border-bottom:1px solid #DCEFE8; word-break:break-all;">${email}</div>
             <a href="#tool" style="display:block; padding:10px 14px; color:#232420; text-decoration:none; font-size:14px;">My appeals</a>
             <button id="profileLogoutBtn" type="button" style="display:block; width:100%; text-align:left; padding:10px 14px; background:none; border:none; color:#FF5A36; cursor:pointer; font-size:14px; font-family:inherit;">Log out</button>
+            <button id="profileDeleteBtn" type="button" style="display:block; width:100%; text-align:left; padding:10px 14px; background:none; border-top:1px solid #DCEFE8; border-left:none; border-right:none; border-bottom:none; color:#232420; opacity:0.6; cursor:pointer; font-size:13px; font-family:inherit;">Delete my account</button>
           </div>
         </div>`;
 
@@ -1910,6 +1911,39 @@ Sincerely,
         await supaClient.auth.signOut();
         reflectAuthState();
         location.hash = '#home';
+      });
+
+      document.getElementById('profileDeleteBtn').addEventListener('click', async () => {
+        const confirmation = prompt(
+          'This will permanently delete your account and all saved data. This cannot be undone.\n\nType DELETE to confirm.'
+        );
+        if (confirmation !== 'DELETE') return;
+
+        const deleteBtn = document.getElementById('profileDeleteBtn');
+        deleteBtn.textContent = 'Deleting…';
+        deleteBtn.disabled = true;
+
+        try {
+          const { data: sessionData } = await supaClient.auth.getSession();
+          const accessToken = sessionData && sessionData.session ? sessionData.session.access_token : null;
+          if (!accessToken) throw new Error('Your session has expired. Please log in again.');
+
+          const response = await fetch('/api/delete-account', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Something went wrong.');
+
+          await supaClient.auth.signOut();
+          alert('Your account has been permanently deleted.');
+          location.hash = '#home';
+          reflectAuthState();
+        } catch (err) {
+          alert(err.message || 'Something went wrong deleting your account. Please try again.');
+          deleteBtn.textContent = 'Delete my account';
+          deleteBtn.disabled = false;
+        }
       });
     } else {
       wrap.innerHTML = '<a href="#auth" id="navLogin">Log in</a>';
