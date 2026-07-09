@@ -757,6 +757,7 @@
       <a href="#trust">Trust &amp; privacy</a>
       <a href="#pricing">Pricing</a>
       <a href="#faq">FAQ</a>
+      <a href="#health-data-policy">Health Data Policy</a>
       <div id="navAccountWrap" style="display:inline-flex; align-items:center;">
         <a href="#auth" id="navLogin">Log in</a>
       </div>
@@ -1070,6 +1071,11 @@
       <span>Your files are encrypted and used only to build your appeal. You can delete them anytime from your account.</span>
     </div>
 
+    <label style="display:flex; align-items:flex-start; gap:10px; margin:18px 0; cursor:pointer; font-size:14px; color:var(--charcoal);">
+      <input type="checkbox" id="healthDataConsent" style="margin-top:3px; flex-shrink:0;">
+      <span>I consent to Appealist collecting and processing the health information in this denial letter (and EOB, if provided) solely to draft my appeal, as described in the <a href="#health-data-policy" target="_blank" style="color:var(--sea); text-decoration:underline;">Consumer Health Data Privacy Policy</a>.</span>
+    </label>
+
     <div class="panel-actions">
       <button class="btn-primary" id="toStep2" disabled>
         Continue
@@ -1280,6 +1286,7 @@ Sincerely,
   <div class="tabs">
     <a class="tab active" data-tab="privacy">Privacy Policy</a>
     <a class="tab" data-tab="terms">Terms of Service</a>
+    <a class="tab" data-tab="health-data">Consumer Health Data Policy</a>
   </div>
 
   <section class="doc-section active" id="doc-privacy">
@@ -1351,6 +1358,52 @@ Sincerely,
 
     <h2>Contact</h2>
     <p>Questions about these terms can be sent to legal@appealist.example.</p>
+  </section>
+
+  <section class="doc-section" id="doc-health-data">
+    <h1>Consumer Health Data Privacy Policy</h1>
+    <span class="updated">Last updated — draft, review before launch</span>
+
+    <div class="callout">
+      <strong>What this page is:</strong> a standalone policy specifically about consumer health data,
+      kept separate from our general Privacy Policy, describing exactly what health-related information
+      we collect, why, and your rights over it.
+    </div>
+
+    <h2>Categories of consumer health data we collect</h2>
+    <ul>
+      <li>The health insurance denial letter and, if provided, the Explanation of Benefits (EOB) you upload.</li>
+      <li>Any answers you provide in our guided questions about your claim, diagnosis, treatment, or provider.</li>
+      <li>The denial reason, appeal deadline, and appeal letter text we generate based on the above.</li>
+    </ul>
+
+    <h2>How we collect it</h2>
+    <p>Directly from you: the documents you choose to upload, and the answers you type into our guided questions. We do not collect health data about you from any other source.</p>
+
+    <h2>Why we collect it</h2>
+    <p>Solely to extract the facts needed to draft your appeal letter and to track your appeal deadline. We do not use your health data for advertising, do not build behavioral profiles from it, and do not use it to train AI models.</p>
+
+    <h2>Who we share it with</h2>
+    <p>We share the minimum necessary information with two processors, solely to deliver the service you asked for:</p>
+    <ul>
+      <li><strong>Our AI provider</strong> — receives your uploaded documents momentarily, to extract facts and draft your letter. Not used to train their models, not retained by them beyond standard abuse-monitoring windows.</li>
+      <li><strong>Our mail provider</strong> — only if you choose the "mail this for me" option, receives your finished letter and the mailing address you provide, solely to print and mail it.</li>
+    </ul>
+    <p>We do not sell consumer health data, and we do not share it with insurers, employers, advertisers, or data brokers.</p>
+
+    <h2>How long we keep it</h2>
+    <p>Your original uploaded documents are never stored — they are used once, in memory, and discarded immediately after your letter is generated. The extracted denial reason, deadline, and generated letter are kept only while your account is active, and are permanently deleted the moment you delete your account.</p>
+
+    <h2>Your rights</h2>
+    <ul>
+      <li>You may withdraw your consent to further collection of your health data at any time by deleting your account.</li>
+      <li>You may request access to the health data we hold about you.</li>
+      <li>You may request permanent deletion of your account and all associated health data at any time, directly from your account menu — this deletion is immediate and permanent.</li>
+      <li>To exercise any of these rights, or if you have questions, contact us at privacy@appealist.example.</li>
+    </ul>
+
+    <h2>Consent</h2>
+    <p>Before you upload any document, we ask you to separately and affirmatively confirm that you consent to Appealist collecting and processing your health data as described in this policy. This is a distinct, specific confirmation — not bundled into a general "I agree to the Terms" checkbox.</p>
   </section>
 </main>
 
@@ -1509,8 +1562,10 @@ Sincerely,
     });
   });
   function updateStep1(){
-    document.getElementById('toStep2').disabled = !files.denial;
+    const consentBox = document.getElementById('healthDataConsent');
+    document.getElementById('toStep2').disabled = !files.denial || !consentBox.checked;
   }
+  document.getElementById('healthDataConsent').addEventListener('change', updateStep1);
 
   document.getElementById('toStep2').addEventListener('click', () => goTo(2));
   document.getElementById('backTo1').addEventListener('click', () => goTo(1));
@@ -1968,6 +2023,7 @@ Sincerely,
     const h = (location.hash || '#home').replace('#', '');
     if (HOME_ANCHORS.includes(h)) return { view: 'home', anchor: h };
     if (h === 'privacy-terms') return { view: 'privacy', anchor: null, tab: 'terms' };
+    if (h === 'health-data-policy') return { view: 'privacy', anchor: null, tab: 'health-data' };
     if (VIEWS.includes(h)) return { view: h, anchor: null };
     return { view: 'home', anchor: null };
   }
@@ -2006,9 +2062,9 @@ Sincerely,
     } else {
       window.scrollTo({ top: 0 });
     }
-    if (view === 'privacy' && tab === 'terms') {
-      const termsTab = document.querySelector('#view-privacy [data-tab="terms"]');
-      if (termsTab) termsTab.click();
+    if (view === 'privacy' && tab) {
+      const targetTab = document.querySelector(`#view-privacy [data-tab="${tab}"]`);
+      if (targetTab) targetTab.click();
     }
   }
 
