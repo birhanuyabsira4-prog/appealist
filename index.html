@@ -5,6 +5,7 @@
   src="https://js.sentry-cdn.com/484e3410fcd7f6b10a57d3562f0c6e4c.min.js"
   crossorigin="anonymous"
 ></script>
+<script data-goatcounter="https://appealist.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Appealist — Fight your health insurance denial</title>
@@ -1551,6 +1552,18 @@ Sincerely,
       if(i === n) s.classList.add('active');
     });
     window.scrollTo({top:0, behavior:'smooth'});
+
+    // Track which step people reach, so drop-off between steps is visible
+    // in the GoatCounter dashboard (e.g. "500 reached step 2, only 200
+    // reached step 3" tells us exactly where people quit).
+    if (window.goatcounter && window.goatcounter.count) {
+      const stepNames = {1: 'Step 1: Upload', 2: 'Step 2: Details', 3: 'Step 3: Analysis', 4: 'Step 4: Your Letter'};
+      window.goatcounter.count({
+        path: 'tool-step-' + n,
+        title: stepNames[n] || ('Step ' + n),
+        event: true
+      });
+    }
   }
 
   // ---- Step 1: uploads ----
