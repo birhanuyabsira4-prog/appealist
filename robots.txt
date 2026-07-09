@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://appealist.vercel.app/sitemap.xml
