@@ -1281,6 +1281,18 @@ Sincerely,
   <span id="toastMsg">Saved</span>
 </div>
 
+<div id="exitCaptureOverlay" style="display:none; position:fixed; inset:0; background:rgba(11,59,51,0.45); z-index:200; align-items:center; justify-content:center; padding:20px;">
+  <div style="background:#F1EEE3; border-radius:16px; max-width:420px; width:100%; padding:32px; box-shadow:0 20px 60px rgba(11,59,51,0.3);">
+    <h3 style="font-family:var(--serif); font-size:22px; color:#0B3B33; margin-bottom:10px;">Got interrupted?</h3>
+    <p style="font-size:14.5px; color:#232420; margin-bottom:20px; line-height:1.5;">Leave your email and we'll send you a link to pick up exactly where you left off — no need to start over.</p>
+    <input type="email" id="exitCaptureEmail" placeholder="you@email.com" style="width:100%; padding:12px 14px; border-radius:8px; border:1px solid #DCEFE8; font-size:15px; margin-bottom:14px; box-sizing:border-box;">
+    <div style="display:flex; gap:10px;">
+      <button id="exitCaptureSubmit" type="button" style="flex:1; background:#FF5A36; color:#F1EEE3; border:none; padding:12px; border-radius:8px; font-weight:600; cursor:pointer; font-size:14.5px;">Email me a reminder</button>
+      <button id="exitCaptureDismiss" type="button" style="background:none; border:none; color:#232420; opacity:0.6; cursor:pointer; font-size:14.5px; padding:12px;">No thanks</button>
+    </div>
+  </div>
+</div>
+
 
   </div>
 
@@ -1543,6 +1555,9 @@ Sincerely,
   const steps = document.querySelectorAll('.progress-step');
 
   function goTo(n){
+    if (typeof furthestStepReached !== 'undefined' && n > furthestStepReached) {
+      furthestStepReached = n;
+    }
     panels.forEach(p => p.classList.remove('active'));
     document.getElementById('panel-' + n).classList.add('active');
     steps.forEach(s => {
@@ -1867,6 +1882,60 @@ Sincerely,
   if (authConfigured && window.supabase) {
     supaClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   }
+
+  // ---------------- Exit-intent email capture ----------------
+  // Shows when someone clicks "Save and exit" partway through the tool,
+  // before finishing Step 4. Saves to a separate, insert-only table —
+  // never linked to login accounts.
+  let furthestStepReached = 1;
+  let exitCaptureShownThisSession = sessionStorage.getItem('exitCaptureShown') === 'true';
+
+  const exitOverlay = document.getElementById('exitCaptureOverlay');
+  const exitEmailInput = document.getElementById('exitCaptureEmail');
+
+  function maybeShowExitCapture(){
+    if (exitCaptureShownThisSession || furthestStepReached >= 4) return false;
+    exitOverlay.style.display = 'flex';
+    exitCaptureShownThisSession = true;
+    sessionStorage.setItem('exitCaptureShown', 'true');
+    return true;
+  }
+
+  function closeExitCapture(){
+    exitOverlay.style.display = 'none';
+    location.hash = '#home';
+  }
+
+  document.getElementById('exitCaptureDismiss').addEventListener('click', closeExitCapture);
+
+  document.getElementById('exitCaptureSubmit').addEventListener('click', async () => {
+    const email = exitEmailInput.value.trim();
+    if (!email || !email.includes('@')) {
+      exitEmailInput.style.borderColor = '#FF5A36';
+      return;
+    }
+    if (supaClient) {
+      try {
+        await supaClient.from('abandoned_signups').insert({
+          email: email,
+          furthest_step: furthestStepReached
+        });
+      } catch (err) {
+        console.error('Could not save reminder email:', err);
+      }
+    }
+    closeExitCapture();
+    setTimeout(() => showToast("We'll email you a reminder"), 400);
+  });
+
+  // Intercept the nav CTA only when it's in its "Save and exit" state.
+  document.getElementById('navCta').addEventListener('click', (e) => {
+    const label = document.getElementById('navCtaLabel').textContent;
+    if (label === 'Save and exit') {
+      const shown = maybeShowExitCapture();
+      if (shown) e.preventDefault();
+    }
+  });
 
   let authMode = 'signup';
   const authStatus = document.getElementById('authStatus');
