@@ -2262,13 +2262,46 @@ Sincerely,
       return;
     }
 
+    // Sort by deadline urgency first (soonest/overdue deadlines float to
+    // the top), then by creation date for anything without a deadline —
+    // this is the actual point of a "my appeals" page: surfacing what
+    // needs attention, not just a flat list.
+    const now = new Date();
+    function daysUntil(a){
+      if (!a.deadline) return Infinity; // no deadline = sorts last
+      return Math.ceil((new Date(a.deadline) - now) / 86400000);
+    }
+    appeals.sort((a, b) => daysUntil(a) - daysUntil(b));
+
     listEl.innerHTML = appeals.map(a => {
       const created = new Date(a.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-      const deadline = a.deadline ? new Date(a.deadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Not stated';
       const reason = a.denial_reason ? a.denial_reason.slice(0, 140) + (a.denial_reason.length > 140 ? '…' : '') : 'Reason not recorded';
       const statusBadge = a.status === 'mailed'
         ? '<span style="background:#DCEFE8; color:#0B3B33; font-size:11px; font-weight:600; padding:3px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:0.03em;">Mailed</span>'
         : '<span style="background:#F1EEE3; border:1px solid #DCEFE8; color:#232420; opacity:0.7; font-size:11px; font-weight:600; padding:3px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:0.03em;">Draft</span>';
+
+      // Deadline urgency: red if overdue or very soon, amber if approaching,
+      // neutral otherwise. Only matters for drafts — a mailed appeal's
+      // deadline was already met, so we don't flag those as urgent.
+      let deadlineHtml;
+      if (!a.deadline) {
+        deadlineHtml = '<span style="opacity:0.7;">Deadline: Not stated</span>';
+      } else {
+        const days = daysUntil(a);
+        const deadlineStr = new Date(a.deadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        if (a.status === 'mailed') {
+          deadlineHtml = `<span style="opacity:0.7;">Deadline was: ${deadlineStr}</span>`;
+        } else if (days < 0) {
+          deadlineHtml = `<span style="color:#B3261E; font-weight:600;">Deadline passed (${deadlineStr})</span>`;
+        } else if (days <= 14) {
+          deadlineHtml = `<span style="color:#B3261E; font-weight:600;">Only ${days} day${days === 1 ? '' : 's'} left — file by ${deadlineStr}</span>`;
+        } else if (days <= 30) {
+          deadlineHtml = `<span style="color:#946200; font-weight:600;">${days} days left — file by ${deadlineStr}</span>`;
+        } else {
+          deadlineHtml = `<span style="opacity:0.7;">Deadline: ${deadlineStr}</span>`;
+        }
+      }
+
       return `
         <div class="my-appeal-card" data-id="${a.id}" style="border:1px solid #DCEFE8; border-radius:12px; padding:20px; margin-bottom:14px; background:#fff;">
           <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
@@ -2278,7 +2311,7 @@ Sincerely,
                 ${statusBadge}
               </div>
               <p style="margin:8px 0 4px; font-size:14.5px; color:#232420;">${reason}</p>
-              <div style="font-size:13px; color:#232420; opacity:0.7;">Deadline: ${deadline}</div>
+              <div style="font-size:13px;">${deadlineHtml}</div>
             </div>
             <button class="delete-appeal-btn" data-id="${a.id}" style="background:none; border:none; color:#FF5A36; opacity:0.6; cursor:pointer; font-size:13px; white-space:nowrap;">Delete</button>
           </div>
