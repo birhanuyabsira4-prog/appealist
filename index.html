@@ -1519,6 +1519,17 @@ Sincerely,
 
 </div>
 
+<div id="view-my-appeals" style="display:none; max-width:760px; margin:0 auto; padding:60px 24px 100px;">
+  <span style="font-family:var(--mono); font-size:12px; letter-spacing:0.06em; text-transform:uppercase; color:var(--sea);">Your account</span>
+  <h1 style="font-family:var(--serif); font-size:34px; color:#0B3B33; margin:8px 0 28px;">My appeals</h1>
+
+  <div id="myAppealsLoading" style="color:#232420; opacity:0.7;">Loading your appeals…</div>
+  <div id="myAppealsEmpty" style="display:none; color:#232420; opacity:0.7;">
+    You haven't generated any appeals yet. <a href="#tool" style="color:var(--sea);">Start one now</a>.
+  </div>
+  <div id="myAppealsList"></div>
+</div>
+
 <script>
 
   // 3D card flip
@@ -1713,6 +1724,7 @@ Sincerely,
       });
 
       populateResult(extracted, letter);
+      saveAppealIfLoggedIn(extracted, letter, insurer);
       setTimeout(() => goTo(4), 500);
 
     } catch(err){
@@ -1883,6 +1895,32 @@ Sincerely,
     supaClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   }
 
+  // Saves the RESULT of a finished appeal (never the original file) for
+  // logged-in users, so they can see it later on their "My appeals" page.
+  // Silently does nothing if the person isn't logged in — Step 1-4 already
+  // works fine for anonymous use, this just adds history on top for
+  // accounts, without ever blocking or erroring the main flow.
+  async function saveAppealIfLoggedIn(extracted, letterText, insurer){
+    if (!authConfigured || !supaClient) return;
+    try {
+      const { data } = await supaClient.auth.getSession();
+      const user = data && data.session ? data.session.user : null;
+      if (!user) return;
+
+      await supaClient.from('appeals').insert({
+        user_id: user.id,
+        insurer: insurer || null,
+        denial_reason: (extracted && extracted.denial_reason_raw) || null,
+        deadline: (extracted && extracted.appeal_deadline_date) || null,
+        letter_text: letterText
+      });
+    } catch (err) {
+      // Never interrupt the user's finished letter over a history-saving
+      // hiccup — just log it for us to notice later.
+      console.error('Could not save appeal to history:', err);
+    }
+  }
+
   // ---------------- Exit-intent email capture ----------------
   // Shows when someone clicks "Save and exit" partway through the tool,
   // before finishing Step 4. Saves to a separate, insert-only table —
@@ -2042,7 +2080,7 @@ Sincerely,
           </button>
           <div id="profileChipMenu" style="display:none; position:absolute; right:0; top:38px; background:#F1EEE3; border:1px solid #DCEFE8; border-radius:10px; box-shadow:0 6px 20px rgba(11,59,51,0.15); min-width:200px; z-index:50; overflow:hidden;">
             <div style="padding:12px 14px; font-family:'JetBrains Mono', monospace; font-size:12px; color:#232420; border-bottom:1px solid #DCEFE8; word-break:break-all;">${email}</div>
-            <a href="#tool" style="display:block; padding:10px 14px; color:#232420; text-decoration:none; font-size:14px;">My appeals</a>
+            <a href="#my-appeals" style="display:block; padding:10px 14px; color:#232420; text-decoration:none; font-size:14px;">My appeals</a>
             <button id="profileLogoutBtn" type="button" style="display:block; width:100%; text-align:left; padding:10px 14px; background:none; border:none; color:#FF5A36; cursor:pointer; font-size:14px; font-family:inherit;">Log out</button>
             <button id="profileDeleteBtn" type="button" style="display:block; width:100%; text-align:left; padding:10px 14px; background:none; border-top:1px solid #DCEFE8; border-left:none; border-right:none; border-bottom:none; color:#232420; opacity:0.6; cursor:pointer; font-size:13px; font-family:inherit;">Delete my account</button>
           </div>
@@ -2106,7 +2144,7 @@ Sincerely,
   // ---------------- APP ROUTER ----------------
   // One HTML file, four views, switched by URL hash. No page reloads.
   const HOME_ANCHORS = ['how', 'trust', 'pricing', 'faq'];
-  const VIEWS = ['home', 'tool', 'privacy', 'auth'];
+  const VIEWS = ['home', 'tool', 'privacy', 'auth', 'my-appeals'];
 
   function currentViewFromHash(){
     const h = (location.hash || '#home').replace('#', '');
@@ -2135,7 +2173,8 @@ Sincerely,
       home: 'Appealist — Fight your health insurance denial',
       tool: 'Upload your denial letter — Appealist',
       privacy: 'Privacy Policy & Terms — Appealist',
-      auth: 'Sign up or log in — Appealist'
+      auth: 'Sign up or log in — Appealist',
+      'my-appeals': 'My Appeals — Appealist'
     };
     document.title = titles[view] || titles.home;
   }
@@ -2155,6 +2194,84 @@ Sincerely,
       const targetTab = document.querySelector(`#view-privacy [data-tab="${tab}"]`);
       if (targetTab) targetTab.click();
     }
+    if (view === 'my-appeals') {
+      loadMyAppeals();
+    }
+  }
+
+  async function loadMyAppeals(){
+    const loadingEl = document.getElementById('myAppealsLoading');
+    const emptyEl = document.getElementById('myAppealsEmpty');
+    const listEl = document.getElementById('myAppealsList');
+
+    loadingEl.style.display = 'block';
+    emptyEl.style.display = 'none';
+    listEl.innerHTML = '';
+
+    if (!authConfigured || !supaClient) {
+      loadingEl.textContent = 'This feature requires an account.';
+      return;
+    }
+
+    const { data: sessionData } = await supaClient.auth.getSession();
+    if (!sessionData || !sessionData.session) {
+      // Not logged in — send to the login screen instead of showing an empty page.
+      location.hash = 'auth';
+      return;
+    }
+
+    const { data: appeals, error } = await supaClient
+      .from('appeals')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    loadingEl.style.display = 'none';
+
+    if (error) {
+      loadingEl.style.display = 'block';
+      loadingEl.textContent = 'Something went wrong loading your appeals. Please try refreshing.';
+      console.error('Could not load appeals:', error);
+      return;
+    }
+
+    if (!appeals || appeals.length === 0) {
+      emptyEl.style.display = 'block';
+      return;
+    }
+
+    listEl.innerHTML = appeals.map(a => {
+      const created = new Date(a.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      const deadline = a.deadline ? new Date(a.deadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Not stated';
+      const reason = a.denial_reason ? a.denial_reason.slice(0, 140) + (a.denial_reason.length > 140 ? '…' : '') : 'Reason not recorded';
+      return `
+        <div class="my-appeal-card" data-id="${a.id}" style="border:1px solid #DCEFE8; border-radius:12px; padding:20px; margin-bottom:14px; background:#fff;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+            <div>
+              <div style="font-family:var(--mono); font-size:11px; color:#146356; text-transform:uppercase; letter-spacing:0.04em;">${a.insurer || 'Insurer not specified'} · Created ${created}</div>
+              <p style="margin:8px 0 4px; font-size:14.5px; color:#232420;">${reason}</p>
+              <div style="font-size:13px; color:#232420; opacity:0.7;">Deadline: ${deadline}</div>
+            </div>
+            <button class="delete-appeal-btn" data-id="${a.id}" style="background:none; border:none; color:#FF5A36; opacity:0.6; cursor:pointer; font-size:13px; white-space:nowrap;">Delete</button>
+          </div>
+          <details style="margin-top:12px;">
+            <summary style="cursor:pointer; font-size:13.5px; color:#146356;">View full letter</summary>
+            <pre style="white-space:pre-wrap; font-family:inherit; font-size:13.5px; margin-top:10px; color:#232420;">${a.letter_text || ''}</pre>
+          </details>
+        </div>`;
+    }).join('');
+
+    document.querySelectorAll('.delete-appeal-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this appeal? This cannot be undone.')) return;
+        const id = btn.dataset.id;
+        const { error: deleteError } = await supaClient.from('appeals').delete().eq('id', id);
+        if (deleteError) {
+          alert('Could not delete this appeal. Please try again.');
+          return;
+        }
+        document.querySelector(`.my-appeal-card[data-id="${id}"]`).remove();
+      });
+    });
   }
 
   window.addEventListener('hashchange', route);
