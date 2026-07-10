@@ -1542,6 +1542,30 @@ Sincerely,
   <div id="myAppealsList"></div>
 </div>
 
+<div id="view-account-settings" style="display:none; max-width:560px; margin:0 auto; padding:60px 24px 100px;">
+  <span style="font-family:var(--mono); font-size:12px; letter-spacing:0.06em; text-transform:uppercase; color:var(--sea);">Your account</span>
+  <h1 style="font-family:var(--serif); font-size:34px; color:#0B3B33; margin:8px 0 32px;">Account settings</h1>
+
+  <div style="background:#fff; border:1px solid #DCEFE8; border-radius:12px; padding:24px; margin-bottom:20px;">
+    <label style="display:block; font-size:12px; font-family:var(--mono); text-transform:uppercase; letter-spacing:0.04em; color:#146356; margin-bottom:6px;">Email</label>
+    <p id="settingsEmail" style="font-size:15px; color:#232420;">Loading…</p>
+  </div>
+
+  <div style="background:#fff; border:1px solid #DCEFE8; border-radius:12px; padding:24px; margin-bottom:20px;">
+    <h3 style="font-family:var(--serif); font-size:18px; color:#0B3B33; margin-bottom:14px;">Change password</h3>
+    <label style="display:block; font-size:13px; color:#232420; margin-bottom:6px;">New password</label>
+    <input type="password" id="newPasswordInput" placeholder="At least 8 characters" minlength="8" style="width:100%; padding:11px 13px; border-radius:8px; border:1px solid #DCEFE8; font-size:14.5px; margin-bottom:14px; box-sizing:border-box;">
+    <button id="changePasswordBtn" type="button" style="background:#146356; color:#F1EEE3; border:none; padding:11px 20px; border-radius:8px; font-weight:600; cursor:pointer; font-size:14px;">Update password</button>
+    <p id="passwordChangeMsg" style="font-size:13px; margin-top:10px; display:none;"></p>
+  </div>
+
+  <div style="background:#fff; border:1px solid #FF5A36; border-radius:12px; padding:24px;">
+    <h3 style="font-family:var(--serif); font-size:18px; color:#B3261E; margin-bottom:8px;">Danger zone</h3>
+    <p style="font-size:13.5px; color:#232420; opacity:0.8; margin-bottom:16px;">Permanently deletes your account and every saved appeal. This cannot be undone.</p>
+    <button id="settingsDeleteBtn" type="button" style="background:none; border:1px solid #FF5A36; color:#B3261E; padding:11px 20px; border-radius:8px; font-weight:600; cursor:pointer; font-size:14px;">Delete my account</button>
+  </div>
+</div>
+
 <script>
 
   // 3D card flip
@@ -2116,8 +2140,8 @@ Sincerely,
           <div id="profileChipMenu" style="display:none; position:absolute; right:0; top:38px; background:#F1EEE3; border:1px solid #DCEFE8; border-radius:10px; box-shadow:0 6px 20px rgba(11,59,51,0.15); min-width:200px; z-index:50; overflow:hidden;">
             <div style="padding:12px 14px; font-family:'JetBrains Mono', monospace; font-size:12px; color:#232420; border-bottom:1px solid #DCEFE8; word-break:break-all;">${email}</div>
             <a href="#my-appeals" style="display:block; padding:10px 14px; color:#232420; text-decoration:none; font-size:14px;">My appeals</a>
-            <button id="profileLogoutBtn" type="button" style="display:block; width:100%; text-align:left; padding:10px 14px; background:none; border:none; color:#FF5A36; cursor:pointer; font-size:14px; font-family:inherit;">Log out</button>
-            <button id="profileDeleteBtn" type="button" style="display:block; width:100%; text-align:left; padding:10px 14px; background:none; border-top:1px solid #DCEFE8; border-left:none; border-right:none; border-bottom:none; color:#232420; opacity:0.6; cursor:pointer; font-size:13px; font-family:inherit;">Delete my account</button>
+            <a href="#account-settings" style="display:block; padding:10px 14px; color:#232420; text-decoration:none; font-size:14px;">Account settings</a>
+            <button id="profileLogoutBtn" type="button" style="display:block; width:100%; text-align:left; padding:10px 14px; background:none; border-top:1px solid #DCEFE8; border-left:none; border-right:none; border-bottom:none; color:#FF5A36; cursor:pointer; font-size:14px; font-family:inherit;">Log out</button>
           </div>
         </div>`;
 
@@ -2134,39 +2158,6 @@ Sincerely,
         reflectAuthState();
         location.hash = '#home';
       });
-
-      document.getElementById('profileDeleteBtn').addEventListener('click', async () => {
-        const confirmation = prompt(
-          'This will permanently delete your account and all saved data. This cannot be undone.\n\nType DELETE to confirm.'
-        );
-        if (confirmation !== 'DELETE') return;
-
-        const deleteBtn = document.getElementById('profileDeleteBtn');
-        deleteBtn.textContent = 'Deleting…';
-        deleteBtn.disabled = true;
-
-        try {
-          const { data: sessionData } = await supaClient.auth.getSession();
-          const accessToken = sessionData && sessionData.session ? sessionData.session.access_token : null;
-          if (!accessToken) throw new Error('Your session has expired. Please log in again.');
-
-          const response = await fetch('/api/delete-account', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${accessToken}` }
-          });
-          const result = await response.json();
-          if (!response.ok) throw new Error(result.error || 'Something went wrong.');
-
-          await supaClient.auth.signOut();
-          alert('Your account has been permanently deleted.');
-          location.hash = '#home';
-          reflectAuthState();
-        } catch (err) {
-          alert(err.message || 'Something went wrong deleting your account. Please try again.');
-          deleteBtn.textContent = 'Delete my account';
-          deleteBtn.disabled = false;
-        }
-      });
     } else {
       wrap.innerHTML = '<a href="#auth" id="navLogin">Log in</a>';
     }
@@ -2179,7 +2170,7 @@ Sincerely,
   // ---------------- APP ROUTER ----------------
   // One HTML file, four views, switched by URL hash. No page reloads.
   const HOME_ANCHORS = ['how', 'trust', 'pricing', 'faq'];
-  const VIEWS = ['home', 'tool', 'privacy', 'auth', 'my-appeals'];
+  const VIEWS = ['home', 'tool', 'privacy', 'auth', 'my-appeals', 'account-settings'];
 
   function currentViewFromHash(){
     const h = (location.hash || '#home').replace('#', '');
@@ -2209,7 +2200,8 @@ Sincerely,
       tool: 'Upload your denial letter — Appealist',
       privacy: 'Privacy Policy & Terms — Appealist',
       auth: 'Sign up or log in — Appealist',
-      'my-appeals': 'My Appeals — Appealist'
+      'my-appeals': 'My Appeals — Appealist',
+      'account-settings': 'Account Settings — Appealist'
     };
     document.title = titles[view] || titles.home;
   }
@@ -2231,6 +2223,9 @@ Sincerely,
     }
     if (view === 'my-appeals') {
       loadMyAppeals();
+    }
+    if (view === 'account-settings') {
+      loadAccountSettings();
     }
   }
 
@@ -2347,6 +2342,85 @@ Sincerely,
       });
     });
   }
+
+  async function loadAccountSettings(){
+    const emailEl = document.getElementById('settingsEmail');
+    if (!authConfigured || !supaClient) {
+      emailEl.textContent = 'This feature requires an account.';
+      return;
+    }
+    const { data } = await supaClient.auth.getSession();
+    if (!data || !data.session) {
+      location.hash = 'auth';
+      return;
+    }
+    emailEl.textContent = data.session.user.email || '(no email on file)';
+  }
+
+  document.getElementById('changePasswordBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('changePasswordBtn');
+    const input = document.getElementById('newPasswordInput');
+    const msg = document.getElementById('passwordChangeMsg');
+    const newPassword = input.value;
+
+    if (!newPassword || newPassword.length < 8) {
+      msg.textContent = 'Password must be at least 8 characters.';
+      msg.style.color = '#B3261E';
+      msg.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Updating…';
+    try {
+      const { error } = await supaClient.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      input.value = '';
+      msg.textContent = 'Password updated.';
+      msg.style.color = '#146356';
+      msg.style.display = 'block';
+    } catch (err) {
+      msg.textContent = err.message || 'Something went wrong. Please try again.';
+      msg.style.color = '#B3261E';
+      msg.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Update password';
+    }
+  });
+
+  document.getElementById('settingsDeleteBtn').addEventListener('click', async () => {
+    const confirmation = prompt(
+      'This will permanently delete your account and all saved data. This cannot be undone.\n\nType DELETE to confirm.'
+    );
+    if (confirmation !== 'DELETE') return;
+
+    const deleteBtn = document.getElementById('settingsDeleteBtn');
+    deleteBtn.textContent = 'Deleting…';
+    deleteBtn.disabled = true;
+
+    try {
+      const { data: sessionData } = await supaClient.auth.getSession();
+      const accessToken = sessionData && sessionData.session ? sessionData.session.access_token : null;
+      if (!accessToken) throw new Error('Your session has expired. Please log in again.');
+
+      const response = await fetch('/api/delete-account', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Something went wrong.');
+
+      await supaClient.auth.signOut();
+      alert('Your account has been permanently deleted.');
+      location.hash = '#home';
+      reflectAuthState();
+    } catch (err) {
+      alert(err.message || 'Something went wrong deleting your account. Please try again.');
+      deleteBtn.textContent = 'Delete my account';
+      deleteBtn.disabled = false;
+    }
+  });
 
   window.addEventListener('hashchange', route);
   window.addEventListener('DOMContentLoaded', route);
