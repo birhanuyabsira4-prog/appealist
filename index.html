@@ -1854,6 +1854,7 @@ Sincerely,
         data.expected_delivery_date
           ? 'Expected delivery around ' + new Date(data.expected_delivery_date).toLocaleDateString('en-US', {month:'long', day:'numeric'}) + '.'
           : "We'll email you once it's delivered.";
+      markCurrentAppealAsMailed();
     } catch (err) {
       mailModalError.textContent = err.message || 'Something went wrong sending your letter. Please try again.';
       mailModalError.classList.add('show');
@@ -1900,24 +1901,46 @@ Sincerely,
   // Silently does nothing if the person isn't logged in — Step 1-4 already
   // works fine for anonymous use, this just adds history on top for
   // accounts, without ever blocking or erroring the main flow.
+  // Tracks the database ID of the currently-saved appeal (if any), so we
+  // can update its status later (e.g. to 'mailed') without creating a
+  // duplicate row or needing to re-fetch it.
+  let currentAppealId = null;
+
   async function saveAppealIfLoggedIn(extracted, letterText, insurer){
+    currentAppealId = null;
     if (!authConfigured || !supaClient) return;
     try {
       const { data } = await supaClient.auth.getSession();
       const user = data && data.session ? data.session.user : null;
       if (!user) return;
 
-      await supaClient.from('appeals').insert({
+      const { data: inserted, error } = await supaClient.from('appeals').insert({
         user_id: user.id,
         insurer: insurer || null,
         denial_reason: (extracted && extracted.denial_reason_raw) || null,
         deadline: (extracted && extracted.appeal_deadline_date) || null,
-        letter_text: letterText
-      });
+        letter_text: letterText,
+        status: 'draft'
+      }).select().single();
+
+      if (error) throw error;
+      currentAppealId = inserted ? inserted.id : null;
     } catch (err) {
       // Never interrupt the user's finished letter over a history-saving
       // hiccup — just log it for us to notice later.
       console.error('Could not save appeal to history:', err);
+    }
+  }
+
+  // Call this once a letter is actually mailed, to move its saved status
+  // from 'draft' to 'mailed'. Silently does nothing if the user wasn't
+  // logged in (so there's nothing saved to update).
+  async function markCurrentAppealAsMailed(){
+    if (!authConfigured || !supaClient || !currentAppealId) return;
+    try {
+      await supaClient.from('appeals').update({ status: 'mailed' }).eq('id', currentAppealId);
+    } catch (err) {
+      console.error('Could not update appeal status to mailed:', err);
     }
   }
 
@@ -2243,11 +2266,17 @@ Sincerely,
       const created = new Date(a.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
       const deadline = a.deadline ? new Date(a.deadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Not stated';
       const reason = a.denial_reason ? a.denial_reason.slice(0, 140) + (a.denial_reason.length > 140 ? '…' : '') : 'Reason not recorded';
+      const statusBadge = a.status === 'mailed'
+        ? '<span style="background:#DCEFE8; color:#0B3B33; font-size:11px; font-weight:600; padding:3px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:0.03em;">Mailed</span>'
+        : '<span style="background:#F1EEE3; border:1px solid #DCEFE8; color:#232420; opacity:0.7; font-size:11px; font-weight:600; padding:3px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:0.03em;">Draft</span>';
       return `
         <div class="my-appeal-card" data-id="${a.id}" style="border:1px solid #DCEFE8; border-radius:12px; padding:20px; margin-bottom:14px; background:#fff;">
           <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
             <div>
-              <div style="font-family:var(--mono); font-size:11px; color:#146356; text-transform:uppercase; letter-spacing:0.04em;">${a.insurer || 'Insurer not specified'} · Created ${created}</div>
+              <div style="display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:11px; color:#146356; text-transform:uppercase; letter-spacing:0.04em;">
+                <span>${a.insurer || 'Insurer not specified'} · Created ${created}</span>
+                ${statusBadge}
+              </div>
               <p style="margin:8px 0 4px; font-size:14.5px; color:#232420;">${reason}</p>
               <div style="font-size:13px; color:#232420; opacity:0.7;">Deadline: ${deadline}</div>
             </div>
