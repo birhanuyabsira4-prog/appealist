@@ -628,6 +628,8 @@
 #view-tool .process-item .mark svg {width:11px;height:11px;color:#fff;}
 #view-tool .process-item .spinner {width:11px;height:11px;border-radius:50%;border:2px solid #fff;border-top-color:transparent;animation:spin 0.8s linear infinite;}
 @keyframes spin {to{transform:rotate(360deg);}}
+.spinner-generic {width:16px;height:16px;border-radius:50%;border:2px solid #DCEFE8;border-top-color:#146356;animation:spin 0.8s linear infinite;display:inline-block;vertical-align:middle;}
+.mini-spinner {width:16px;height:16px;border-radius:50%;border:2px solid #DCEFE8;border-top-color:#146356;animation:spin 0.8s linear infinite;display:inline-block;vertical-align:middle;}
 @media (prefers-reduced-motion: reduce) {
 #view-tool .pulse-ring::before {animation:none;}
 #view-tool .spinner {animation:none;}
@@ -1523,7 +1525,15 @@ Sincerely,
   <span style="font-family:var(--mono); font-size:12px; letter-spacing:0.06em; text-transform:uppercase; color:var(--sea);">Your account</span>
   <h1 style="font-family:var(--serif); font-size:34px; color:#0B3B33; margin:8px 0 28px;">My appeals</h1>
 
-  <div id="myAppealsLoading" style="color:#232420; opacity:0.7;">Loading your appeals…</div>
+  <div id="myAppealsLoading" style="display:flex; align-items:center; gap:10px; color:#232420; opacity:0.75; padding:20px 0;">
+    <span class="spinner-generic"></span>
+    <span>Loading your appeals…</span>
+  </div>
+
+  <div id="myAppealsError" style="display:none; text-align:center; background:#fdecea; border:1px solid #f3c5c0; border-radius:12px; padding:32px;">
+    <p style="color:#B3261E; font-size:14.5px; margin-bottom:16px;">Something went wrong loading your appeals. This is usually temporary.</p>
+    <button id="retryMyAppealsBtn" type="button" style="background:#146356; color:#F1EEE3; border:none; padding:10px 20px; border-radius:8px; font-weight:600; cursor:pointer; font-size:14px;">Try again</button>
+  </div>
 
   <div id="myAppealsEmpty" style="display:none; text-align:center; background:#DCEFE8; border-radius:16px; padding:56px 32px;">
     <div style="width:56px; height:56px; border-radius:50%; background:#F1EEE3; display:flex; align-items:center; justify-content:center; margin:0 auto 20px;">
@@ -2231,43 +2241,44 @@ Sincerely,
 
   async function loadMyAppeals(){
     const loadingEl = document.getElementById('myAppealsLoading');
+    const errorEl = document.getElementById('myAppealsError');
     const emptyEl = document.getElementById('myAppealsEmpty');
     const listEl = document.getElementById('myAppealsList');
 
-    loadingEl.style.display = 'block';
+    loadingEl.style.display = 'flex';
+    errorEl.style.display = 'none';
     emptyEl.style.display = 'none';
     listEl.innerHTML = '';
 
     if (!authConfigured || !supaClient) {
-      loadingEl.textContent = 'This feature requires an account.';
+      loadingEl.style.display = 'none';
+      errorEl.style.display = 'block';
+      errorEl.querySelector('p').textContent = 'This feature requires an account.';
+      errorEl.querySelector('button').style.display = 'none';
       return;
     }
 
-    const { data: sessionData } = await supaClient.auth.getSession();
-    if (!sessionData || !sessionData.session) {
-      // Not logged in — send to the login screen instead of showing an empty page.
-      location.hash = 'auth';
-      return;
-    }
+    try {
+      const { data: sessionData } = await supaClient.auth.getSession();
+      if (!sessionData || !sessionData.session) {
+        // Not logged in — send to the login screen instead of showing an empty page.
+        location.hash = 'auth';
+        return;
+      }
 
-    const { data: appeals, error } = await supaClient
-      .from('appeals')
-      .select('*')
-      .order('created_at', { ascending: false });
+      const { data: appeals, error } = await supaClient
+        .from('appeals')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    loadingEl.style.display = 'none';
+      if (error) throw error;
 
-    if (error) {
-      loadingEl.style.display = 'block';
-      loadingEl.textContent = 'Something went wrong loading your appeals. Please try refreshing.';
-      console.error('Could not load appeals:', error);
-      return;
-    }
+      loadingEl.style.display = 'none';
 
-    if (!appeals || appeals.length === 0) {
-      emptyEl.style.display = 'block';
-      return;
-    }
+      if (!appeals || appeals.length === 0) {
+        emptyEl.style.display = 'block';
+        return;
+      }
 
     // Sort by deadline urgency first (soonest/overdue deadlines float to
     // the top), then by creation date for anything without a deadline —
@@ -2341,20 +2352,39 @@ Sincerely,
         document.querySelector(`.my-appeal-card[data-id="${id}"]`).remove();
       });
     });
+    } catch (err) {
+      console.error('Could not load appeals:', err);
+      loadingEl.style.display = 'none';
+      errorEl.style.display = 'block';
+      errorEl.querySelector('p').textContent = 'Something went wrong loading your appeals. This is usually temporary.';
+      errorEl.querySelector('button').style.display = 'inline-block';
+    }
   }
+
+  document.getElementById('retryMyAppealsBtn').addEventListener('click', loadMyAppeals);
 
   async function loadAccountSettings(){
     const emailEl = document.getElementById('settingsEmail');
+    emailEl.innerHTML = '<span class="spinner-generic"></span> <span style="opacity:0.75;">Loading…</span>';
+
     if (!authConfigured || !supaClient) {
       emailEl.textContent = 'This feature requires an account.';
       return;
     }
-    const { data } = await supaClient.auth.getSession();
-    if (!data || !data.session) {
-      location.hash = 'auth';
-      return;
+
+    try {
+      const { data, error } = await supaClient.auth.getSession();
+      if (error) throw error;
+      if (!data || !data.session) {
+        location.hash = 'auth';
+        return;
+      }
+      emailEl.textContent = data.session.user.email || '(no email on file)';
+    } catch (err) {
+      console.error('Could not load account settings:', err);
+      emailEl.innerHTML = '<span style="color:#B3261E;">Something went wrong loading your account. </span> <button id="retrySettingsBtn" type="button" style="background:none; border:none; color:#146356; text-decoration:underline; cursor:pointer; font-size:14px; padding:0;">Try again</button>';
+      document.getElementById('retrySettingsBtn').addEventListener('click', loadAccountSettings);
     }
-    emailEl.textContent = data.session.user.email || '(no email on file)';
   }
 
   document.getElementById('changePasswordBtn').addEventListener('click', async () => {
