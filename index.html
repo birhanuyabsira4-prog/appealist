@@ -1177,6 +1177,14 @@
       <p>Read it over, edit anything that doesn't sound like you, then send it.</p>
     </div>
 
+    <div id="step4SubscribeBanner" style="display:none; background:#DCEFE8; border-radius:10px; padding:14px 18px; margin-bottom:20px; display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;">
+      <span style="font-size:13.5px; color:#0B3B33;">Subscribing keeps this saved with your deadline tracked, and lets us mail it for you — $19/mo.</span>
+      <div style="display:flex; gap:10px; align-items:center; flex-shrink:0;">
+        <a id="step4SubscribeBannerCta" href="#" target="_blank" style="font-size:13px; font-weight:600; color:#146356; text-decoration:underline;">Subscribe</a>
+        <button id="step4SubscribeBannerDismiss" type="button" style="background:none; border:none; color:#232420; opacity:0.5; cursor:pointer; font-size:13px;">Dismiss</button>
+      </div>
+    </div>
+
     <div class="result-grid">
       <div class="letter-card">
         <div class="letter-card-head">
@@ -1291,6 +1299,19 @@ Sincerely,
     <div style="display:flex; gap:10px;">
       <button id="exitCaptureSubmit" type="button" style="flex:1; background:#FF5A36; color:#F1EEE3; border:none; padding:12px; border-radius:8px; font-weight:600; cursor:pointer; font-size:14.5px;">Email me a reminder</button>
       <button id="exitCaptureDismiss" type="button" style="background:none; border:none; color:#232420; opacity:0.6; cursor:pointer; font-size:14.5px; padding:12px;">No thanks</button>
+    </div>
+  </div>
+</div>
+
+<div id="subscribeUpsellOverlay" style="display:none; position:fixed; inset:0; background:rgba(11,59,51,0.45); z-index:200; align-items:center; justify-content:center; padding:20px;">
+  <div style="background:#F1EEE3; border-radius:16px; max-width:420px; width:100%; padding:32px; box-shadow:0 20px 60px rgba(11,59,51,0.3);">
+    <h3 style="font-family:var(--serif); font-size:22px; color:#0B3B33; margin-bottom:10px;" id="subscribeUpsellTitle">This is a subscriber feature</h3>
+    <p style="font-size:14.5px; color:#232420; margin-bottom:20px; line-height:1.5;" id="subscribeUpsellBody">
+      Subscribing for $19/mo unlocks saved appeal history with deadline tracking, and lets us mail your finished letters for you.
+    </p>
+    <div style="display:flex; gap:10px;">
+      <a id="subscribeUpsellCta" href="#" target="_blank" style="flex:1; text-align:center; background:#FF5A36; color:#F1EEE3; border:none; padding:12px; border-radius:8px; font-weight:600; cursor:pointer; font-size:14.5px; text-decoration:none;">Subscribe — $19/mo</a>
+      <button id="subscribeUpsellDismiss" type="button" style="background:none; border:none; color:#232420; opacity:0.6; cursor:pointer; font-size:14.5px; padding:12px;">Not now</button>
     </div>
   </div>
 </div>
@@ -1550,6 +1571,19 @@ Sincerely,
   </div>
 
   <div id="myAppealsList"></div>
+
+  <div id="myAppealsLocked" style="display:none; text-align:center; background:#DCEFE8; border-radius:16px; padding:56px 32px;">
+    <div style="width:56px; height:56px; border-radius:50%; background:#F1EEE3; display:flex; align-items:center; justify-content:center; margin:0 auto 20px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#0B3B33" stroke-width="1.8" style="width:24px; height:24px;"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+    </div>
+    <h3 style="font-family:var(--serif); font-size:22px; color:#0B3B33; margin-bottom:10px;">Save your appeals and track deadlines</h3>
+    <p style="font-size:14.5px; color:#232420; opacity:0.85; max-width:380px; margin:0 auto 24px; line-height:1.55;">
+      Subscribing for $19/mo keeps every appeal you generate saved here, with deadlines tracked automatically — plus we'll mail your letters for you.
+    </p>
+    <a id="myAppealsLockedCta" href="#" target="_blank" class="btn-primary" style="display:inline-flex; align-items:center; gap:8px; text-decoration:none; padding:12px 22px; border-radius:8px;">
+      Subscribe — $19/mo
+    </a>
+  </div>
 </div>
 
 <div id="view-account-settings" style="display:none; max-width:560px; margin:0 auto; padding:60px 24px 100px;">
@@ -1771,6 +1805,7 @@ Sincerely,
 
       populateResult(extracted, letter);
       saveAppealIfLoggedIn(extracted, letter, insurer);
+      maybeShowStep4SubscribeBanner();
       setTimeout(() => goTo(4), 500);
 
     } catch(err){
@@ -1848,7 +1883,41 @@ Sincerely,
   }
   function closeMailModal(){ mailModal.classList.remove('show'); }
 
-  document.getElementById('mailBtn').addEventListener('click', openMailModal);
+  function showSubscribeUpsell(title, body){
+    document.getElementById('subscribeUpsellTitle').textContent = title;
+    document.getElementById('subscribeUpsellBody').textContent = body;
+    document.getElementById('subscribeUpsellCta').href = FREEMIUS_CHECKOUT_URL;
+    document.getElementById('subscribeUpsellOverlay').style.display = 'flex';
+  }
+  document.getElementById('subscribeUpsellDismiss').addEventListener('click', () => {
+    document.getElementById('subscribeUpsellOverlay').style.display = 'none';
+  });
+
+  async function maybeShowStep4SubscribeBanner(){
+    const banner = document.getElementById('step4SubscribeBanner');
+    if (sessionStorage.getItem('step4BannerDismissed') === 'true') return;
+    const subscribed = await checkIsSubscribed();
+    if (subscribed) return;
+    document.getElementById('step4SubscribeBannerCta').href = FREEMIUS_CHECKOUT_URL;
+    banner.style.display = 'flex';
+  }
+  document.getElementById('step4SubscribeBannerDismiss').addEventListener('click', () => {
+    document.getElementById('step4SubscribeBanner').style.display = 'none';
+    sessionStorage.setItem('step4BannerDismissed', 'true');
+  });
+
+
+  document.getElementById('mailBtn').addEventListener('click', async () => {
+    const subscribed = await checkIsSubscribed();
+    if (!subscribed) {
+      showSubscribeUpsell(
+        "Mailing is a subscriber feature",
+        "Subscribing for $19/mo lets us print and mail this letter for you, and keeps every appeal and deadline saved to your account."
+      );
+      return;
+    }
+    openMailModal();
+  });
   document.getElementById('mailModalCancel').addEventListener('click', closeMailModal);
   document.getElementById('mailModalClose').addEventListener('click', closeMailModal);
   mailModal.addEventListener('click', (e) => { if(e.target === mailModal) closeMailModal(); });
@@ -1935,6 +2004,9 @@ Sincerely,
   // Get these from your free project at supabase.com -> Project Settings -> API.
   const SUPABASE_URL = 'https://ttxmcldtavvgqqqlveln.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0eG1jbGR0YXZ2Z3FxcWx2ZWxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0MDUwNTYsImV4cCI6MjA5ODk4MTA1Nn0.ztlJa_8u5WHgncHrExnkN19U-FQwrnT0FqJz7B7RwYs';
+  // Sandbox link for now — switch to the production checkout link once
+  // ready for real payments (Tier B item 3 on the checklist).
+  const FREEMIUS_CHECKOUT_URL = 'https://checkout.freemius.com/product/34553/plan/56806/?sandbox=true';
 
   let supaClient = null;
   const authConfigured = !SUPABASE_URL.startsWith('YOUR_') && !SUPABASE_ANON_KEY.startsWith('YOUR_');
@@ -1987,6 +2059,31 @@ Sincerely,
       await supaClient.from('appeals').update({ status: 'mailed' }).eq('id', currentAppealId);
     } catch (err) {
       console.error('Could not update appeal status to mailed:', err);
+    }
+  }
+
+  // Checks the subscriptions table (matched by the logged-in user's own
+  // verified email) for an 'active' status. Returns false for anyone not
+  // logged in, or with no active subscription — fails safe, never
+  // accidentally grants paid access.
+  async function checkIsSubscribed(){
+    if (!authConfigured || !supaClient) return false;
+    try {
+      const { data: sessionData } = await supaClient.auth.getSession();
+      const email = sessionData && sessionData.session ? sessionData.session.user.email : null;
+      if (!email) return false;
+
+      const { data, error } = await supaClient
+        .from('subscriptions')
+        .select('status')
+        .eq('email', email.toLowerCase())
+        .maybeSingle();
+
+      if (error) throw error;
+      return !!(data && data.status === 'active');
+    } catch (err) {
+      console.error('Could not check subscription status:', err);
+      return false; // fail safe: never grant access if the check itself broke
     }
   }
 
@@ -2243,11 +2340,13 @@ Sincerely,
     const loadingEl = document.getElementById('myAppealsLoading');
     const errorEl = document.getElementById('myAppealsError');
     const emptyEl = document.getElementById('myAppealsEmpty');
+    const lockedEl = document.getElementById('myAppealsLocked');
     const listEl = document.getElementById('myAppealsList');
 
     loadingEl.style.display = 'flex';
     errorEl.style.display = 'none';
     emptyEl.style.display = 'none';
+    lockedEl.style.display = 'none';
     listEl.innerHTML = '';
 
     if (!authConfigured || !supaClient) {
@@ -2263,6 +2362,14 @@ Sincerely,
       if (!sessionData || !sessionData.session) {
         // Not logged in — send to the login screen instead of showing an empty page.
         location.hash = 'auth';
+        return;
+      }
+
+      const subscribed = await checkIsSubscribed();
+      if (!subscribed) {
+        loadingEl.style.display = 'none';
+        document.getElementById('myAppealsLockedCta').href = FREEMIUS_CHECKOUT_URL;
+        lockedEl.style.display = 'block';
         return;
       }
 
