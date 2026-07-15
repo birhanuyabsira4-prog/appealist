@@ -53,18 +53,37 @@ function statusFromEventType(eventType) {
   return null;
 }
 
-// Freemius payloads nest the relevant email in different places depending
-// on event type. This checks the common spots rather than assuming one
-// fixed shape.
+// Freemius nests the buyer's email in different places depending on event
+// type — confirmed against REAL webhook payloads (not just docs guesses):
+//
+//   subscription.created / user.created / etc:
+//     objects.user.email
+//
+//   cart.created (checkout opened, not yet paid):
+//     objects.cart.email
+//
+// We check the known-real paths first, then fall back to a few
+// looser guesses in case a future/rarer event uses a different shape.
 function extractEmail(event) {
+  const objects = event && event.objects;
+
+  if (objects) {
+    if (objects.user && objects.user.email) return objects.user.email;
+    if (objects.cart && objects.cart.email) return objects.cart.email;
+    if (objects.subscription && objects.subscription.email) return objects.subscription.email;
+    if (objects.license && objects.license.email) return objects.license.email;
+  }
+
+  // Fallback guesses for shapes we haven't seen yet — kept defensive
+  // rather than assuming one fixed structure.
   const obj = event && (event.data || event.object || event);
-  if (!obj) return null;
-  return (
-    obj.email ||
-    (obj.user && obj.user.email) ||
-    (obj.buyer && obj.buyer.email) ||
-    null
-  );
+  if (obj) {
+    if (obj.email) return obj.email;
+    if (obj.user && obj.user.email) return obj.user.email;
+    if (obj.buyer && obj.buyer.email) return obj.buyer.email;
+  }
+
+  return null;
 }
 
 export default async function handler(req, res) {
@@ -129,8 +148,13 @@ export default async function handler(req, res) {
     await supabaseAdmin.from('subscriptions').upsert({
       email: email.toLowerCase(),
       status: newStatus,
-      plan: (event.data && event.data.plan && event.data.plan.name) || null,
-      freemius_subscription_id: (event.data && event.data.id) ? String(event.data.id) : null,
+      // Plan name isn't present on the subscription.created payload we've
+      // observed (event.data only has subscription_id/license_id/etc) —
+      // left null for now rather than guessing a wrong path again.
+      // objects.subscription may carry plan info; revisit once we
+      // actually need this column populated.
+      plan: (event.objects && event.objects.subscription && event.objects.subscription.plan_id) ? String(event.objects.subscription.plan_id) : null,
+      freemius_subscription_id: (event.data && event.data.subscription_id) ? String(event.data.subscription_id) : null,
       last_event: eventType,
       updated_at: new Date().toISOString()
     }, { onConflict: 'email' });
